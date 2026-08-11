@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply m-0 min-h-svh bg-surface-950 font-sans text-slate-200 antialiased;
+  }
+
+  #root {
+    @apply min-h-svh;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  img,
+  svg {
+    @apply block max-w-full;
+  }
+
+  button {
+    @apply cursor-pointer border-0 bg-transparent;
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .container-app {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+}
