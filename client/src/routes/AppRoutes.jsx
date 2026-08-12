@@ -1,8 +1,12 @@
 import { Route, Routes } from 'react-router-dom'
+import GuestRoute from '../components/GuestRoute'
+import ProtectedRoute from '../components/ProtectedRoute'
 import MainLayout from '../layouts/MainLayout'
 import HomePage from '../pages/HomePage'
+import LoginPage from '../pages/LoginPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import PlaceholderPage from '../pages/PlaceholderPage'
+import RegisterPage from '../pages/RegisterPage'
 
 function AppRoutes() {
   return (
@@ -12,28 +16,28 @@ function AppRoutes() {
         <Route
           path="login"
           element={
-            <PlaceholderPage
-              title="Login"
-              description="Authentication UI will be implemented in a future step."
-            />
+            <GuestRoute>
+              <LoginPage />
+            </GuestRoute>
           }
         />
         <Route
           path="register"
           element={
-            <PlaceholderPage
-              title="Register"
-              description="Registration UI will be implemented in a future step."
-            />
+            <GuestRoute>
+              <RegisterPage />
+            </GuestRoute>
           }
         />
         <Route
           path="chat"
           element={
-            <PlaceholderPage
-              title="Chat"
-              description="The chat interface will be implemented in a future step."
-            />
+            <ProtectedRoute>
+              <PlaceholderPage
+                title="Chat"
+                description="The chat interface will be implemented in a future step. You are authenticated and can access this protected route."
+              />
+            </ProtectedRoute>
           }
         />
         <Route path="*" element={<NotFoundPage />} />
