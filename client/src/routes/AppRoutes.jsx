@@ -3,9 +3,9 @@ import GuestRoute from '../components/GuestRoute'
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainLayout from '../layouts/MainLayout'
 import HomePage from '../pages/HomePage'
+import ChatPage from '../pages/ChatPage'
 import LoginPage from '../pages/LoginPage'
 import NotFoundPage from '../pages/NotFoundPage'
-import PlaceholderPage from '../pages/PlaceholderPage'
 import RegisterPage from '../pages/RegisterPage'
 
 function AppRoutes() {
@@ -33,10 +33,7 @@ function AppRoutes() {
           path="chat"
           element={
             <ProtectedRoute>
-              <PlaceholderPage
-                title="Chat"
-                description="The chat interface will be implemented in a future step. You are authenticated and can access this protected route."
-              />
+              <ChatPage />
             </ProtectedRoute>
           }
         />
