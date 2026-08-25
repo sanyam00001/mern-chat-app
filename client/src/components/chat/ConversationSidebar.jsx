@@ -8,6 +8,7 @@ function ConversationSidebar({
   error,
   onRetry,
   showOnMobile,
+  isUserOnline,
 }) {
   return (
     <aside
@@ -73,18 +74,28 @@ function ConversationSidebar({
                     aria-current={isSelected ? 'true' : undefined}
                   >
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-sm font-semibold text-primary-200"
+                      className="relative h-10 w-10 shrink-0"
                       aria-hidden="true"
                     >
-                      {participant?.avatar ? (
-                        <img
-                          src={participant.avatar}
-                          alt=""
-                          className="h-full w-full rounded-full object-cover"
-                        />
-                      ) : (
-                        getInitials(participant?.name || '?')
-                      )}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/20 text-sm font-semibold text-primary-200">
+                        {participant?.avatar ? (
+                          <img
+                            src={participant.avatar}
+                            alt=""
+                            className="h-full w-full rounded-full object-cover"
+                          />
+                        ) : (
+                          getInitials(participant?.name || '?')
+                        )}
+                      </div>
+                      <span
+                        className={[
+                          'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-surface-900',
+                          isUserOnline?.(participant?._id)
+                            ? 'bg-emerald-400'
+                            : 'bg-slate-500',
+                        ].join(' ')}
+                      />
                     </div>
 
                     <div className="min-w-0 flex-1">

@@ -1,9 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-function MessageInput({ onSend, disabled }) {
+const TYPING_STOP_DELAY_MS = 2000
+
+function MessageInput({ onSend, onTyping, onTypingStop, disabled }) {
   const [content, setContent] = useState('')
   const [error, setError] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const stopTimeoutRef = useRef(null)
+  const onTypingStopRef = useRef(onTypingStop)
+
+  onTypingStopRef.current = onTypingStop
+
+  const clearTypingTimeout = () => {
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current)
+      stopTimeoutRef.current = null
+    }
+  }
+
+  const scheduleTypingStop = () => {
+    clearTypingTimeout()
+    stopTimeoutRef.current = setTimeout(() => {
+      onTypingStopRef.current?.()
+    }, TYPING_STOP_DELAY_MS)
+  }
+
+  useEffect(() => {
+    return () => {
+      clearTypingTimeout()
+      onTypingStopRef.current?.()
+    }
+  }, [])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -19,6 +46,7 @@ function MessageInput({ onSend, disabled }) {
     setIsSending(true)
 
     try {
+      onTypingStop?.()
       await onSend(trimmed)
       setContent('')
     } catch (sendError) {
@@ -29,9 +57,19 @@ function MessageInput({ onSend, disabled }) {
   }
 
   const handleChange = (event) => {
-    setContent(event.target.value)
+    const value = event.target.value
+    setContent(value)
+
     if (error) {
       setError('')
+    }
+
+    if (value.trim()) {
+      onTyping?.()
+      scheduleTypingStop()
+    } else {
+      clearTypingTimeout()
+      onTypingStop?.()
     }
   }
 

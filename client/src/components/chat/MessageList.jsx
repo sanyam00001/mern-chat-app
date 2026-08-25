@@ -1,12 +1,19 @@
 import { useEffect, useRef } from 'react'
 import { formatMessageTime } from '../../utils/chatUtils'
 
-function MessageList({ messages, currentUserId, loading, error, onRetry }) {
+function MessageList({
+  messages,
+  currentUserId,
+  loading,
+  error,
+  onRetry,
+  typingUser,
+}) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, typingUser])
 
   if (loading) {
     return (
@@ -47,6 +54,11 @@ function MessageList({ messages, currentUserId, loading, error, onRetry }) {
         <p className="mt-1 text-xs text-slate-500">
           Send a message to start the conversation.
         </p>
+        {typingUser && (
+          <p className="mt-4 text-sm text-primary-300" aria-live="polite">
+            {typingUser} is typing...
+          </p>
+        )}
       </div>
     )
   }
@@ -93,6 +105,11 @@ function MessageList({ messages, currentUserId, loading, error, onRetry }) {
           )
         })}
       </ul>
+      {typingUser && (
+        <p className="mt-3 text-sm text-primary-300" aria-live="polite">
+          {typingUser} is typing...
+        </p>
+      )}
       <div ref={bottomRef} aria-hidden="true" />
     </div>
   )

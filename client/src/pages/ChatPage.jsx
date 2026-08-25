@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ConversationSidebar from '../components/chat/ConversationSidebar'
 import MessageInput from '../components/chat/MessageInput'
 import MessageList from '../components/chat/MessageList'
 import NewConversationPanel from '../components/chat/NewConversationPanel'
 import { useAuth } from '../hooks/useAuth'
+import { useSocket } from '../hooks/useSocket'
 import {
   createOrFindConversation,
   getConversations,
@@ -11,9 +12,16 @@ import {
   sendMessage as sendMessageApi,
 } from '../services/chatService'
 import { getInitials } from '../utils/chatUtils'
+import { SOCKET_EVENTS } from '../utils/constants'
+
+const TYPING_THROTTLE_MS = 1500
+
+const getMessageConversationId = (message) =>
+  (message.conversation?._id || message.conversation || '').toString()
 
 function ChatPage() {
   const { user } = useAuth()
+  const { socket, connected, isUserOnline, setReconnectHandler } = useSocket()
 
   const [conversations, setConversations] = useState([])
   const [conversationsLoading, setConversationsLoading] = useState(true)
@@ -23,13 +31,35 @@ function ChatPage() {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messagesError, setMessagesError] = useState('')
+  const [typingUser, setTypingUser] = useState(null)
 
   const [showNewConversation, setShowNewConversation] = useState(false)
   const [mobileView, setMobileView] = useState('sidebar')
 
+  const selectedConversationIdRef = useRef(null)
+  const lastTypingEmitRef = useRef(0)
+
   const selectedConversation = conversations.find(
     (conversation) => conversation._id === selectedConversationId,
   )
+
+  const otherParticipant = selectedConversation?.otherParticipant
+  const isOtherOnline = isUserOnline(otherParticipant?._id)
+
+  const upsertConversation = useCallback((conversation) => {
+    setConversations((prev) => {
+      const exists = prev.some((item) => item._id === conversation._id)
+      const next = exists
+        ? prev.map((item) =>
+            item._id === conversation._id ? { ...item, ...conversation } : item,
+          )
+        : [conversation, ...prev]
+
+      return next.sort(
+        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
+      )
+    })
+  }, [])
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true)
@@ -65,71 +95,176 @@ function ChatPage() {
   }, [])
 
   useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId
+  }, [selectedConversationId])
+
+  useEffect(() => {
     loadConversations()
   }, [loadConversations])
 
   useEffect(() => {
     if (selectedConversationId) {
       loadMessages(selectedConversationId)
+      socket?.emit(SOCKET_EVENTS.CONVERSATION_JOIN, {
+        conversationId: selectedConversationId,
+      })
     } else {
       setMessages([])
+      setTypingUser(null)
     }
-  }, [selectedConversationId, loadMessages])
+  }, [selectedConversationId, loadMessages, socket])
+
+  useEffect(() => {
+    setReconnectHandler(() => {
+      loadConversations()
+
+      const conversationId = selectedConversationIdRef.current
+
+      if (conversationId) {
+        loadMessages(conversationId)
+        socket?.emit(SOCKET_EVENTS.CONVERSATION_JOIN, { conversationId })
+      }
+    })
+
+    return () => setReconnectHandler(null)
+  }, [loadConversations, loadMessages, setReconnectHandler, socket])
+
+  useEffect(() => {
+    if (!socket) {
+      return undefined
+    }
+
+    const handleNewMessage = (message) => {
+      const conversationId = getMessageConversationId(message)
+
+      if (conversationId !== selectedConversationIdRef.current) {
+        return
+      }
+
+      setMessages((prev) => {
+        if (prev.some((item) => item._id === message._id)) {
+          return prev
+        }
+
+        return [...prev, message]
+      })
+
+      setTypingUser((current) =>
+        current && conversationId === selectedConversationIdRef.current
+          ? null
+          : current,
+      )
+    }
+
+    const handleConversationUpdated = (conversation) => {
+      if (!conversation?._id) {
+        return
+      }
+
+      upsertConversation(conversation)
+    }
+
+    const handleTypingStart = ({ conversationId, userId, name }) => {
+      if (
+        conversationId === selectedConversationIdRef.current &&
+        userId !== user?._id
+      ) {
+        setTypingUser(name || 'User')
+      }
+    }
+
+    const handleTypingStop = ({ conversationId, userId }) => {
+      if (
+        conversationId === selectedConversationIdRef.current &&
+        userId !== user?._id
+      ) {
+        setTypingUser(null)
+      }
+    }
+
+    socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleNewMessage)
+    socket.on(SOCKET_EVENTS.CONVERSATION_UPDATED, handleConversationUpdated)
+    socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart)
+    socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.MESSAGE_NEW, handleNewMessage)
+      socket.off(SOCKET_EVENTS.CONVERSATION_UPDATED, handleConversationUpdated)
+      socket.off(SOCKET_EVENTS.TYPING_START, handleTypingStart)
+      socket.off(SOCKET_EVENTS.TYPING_STOP, handleTypingStop)
+    }
+  }, [socket, upsertConversation, user?._id])
 
   const handleSelectConversation = (conversationId) => {
     setSelectedConversationId(conversationId)
     setShowNewConversation(false)
     setMobileView('chat')
+    setTypingUser(null)
   }
 
   const handleStartConversation = async (recipientId) => {
     const conversation = await createOrFindConversation(recipientId)
 
-    setConversations((prev) => {
-      const exists = prev.some((item) => item._id === conversation._id)
-
-      if (exists) {
-        return prev.map((item) =>
-          item._id === conversation._id ? conversation : item,
-        )
-      }
-
-      return [conversation, ...prev]
-    })
-
+    upsertConversation(conversation)
     setSelectedConversationId(conversation._id)
     setShowNewConversation(false)
     setMobileView('chat')
   }
+
+  const emitTypingStop = useCallback(() => {
+    if (!socket || !selectedConversationId) {
+      return
+    }
+
+    lastTypingEmitRef.current = 0
+    socket.emit(SOCKET_EVENTS.TYPING_STOP, {
+      conversationId: selectedConversationId,
+    })
+  }, [socket, selectedConversationId])
+
+  const handleTyping = useCallback(() => {
+    if (!socket || !selectedConversationId) {
+      return
+    }
+
+    const now = Date.now()
+
+    if (now - lastTypingEmitRef.current < TYPING_THROTTLE_MS) {
+      return
+    }
+
+    lastTypingEmitRef.current = now
+    socket.emit(SOCKET_EVENTS.TYPING_START, {
+      conversationId: selectedConversationId,
+    })
+  }, [socket, selectedConversationId])
 
   const handleSendMessage = async (content) => {
     if (!selectedConversationId) {
       return
     }
 
+    emitTypingStop()
+
     const newMessage = await sendMessageApi(selectedConversationId, content)
 
-    setMessages((prev) => [...prev, newMessage])
+    setMessages((prev) => {
+      if (prev.some((item) => item._id === newMessage._id)) {
+        return prev
+      }
 
-    setConversations((prev) =>
-      prev
-        .map((conversation) =>
-          conversation._id === selectedConversationId
-            ? {
-                ...conversation,
-                lastMessage: {
-                  content: newMessage.content,
-                  sender: newMessage.sender._id,
-                  createdAt: newMessage.createdAt,
-                },
-                updatedAt: newMessage.createdAt,
-              }
-            : conversation,
-        )
-        .sort(
-          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
-        ),
-    )
+      return [...prev, newMessage]
+    })
+
+    upsertConversation({
+      ...(selectedConversation || { _id: selectedConversationId }),
+      lastMessage: {
+        content: newMessage.content,
+        sender: newMessage.sender._id,
+        createdAt: newMessage.createdAt,
+      },
+      updatedAt: newMessage.createdAt,
+    })
   }
 
   const handleBackToSidebar = () => {
@@ -144,6 +279,7 @@ function ChatPage() {
             <h1 className="text-lg font-semibold text-white">Chat</h1>
             <p className="text-sm text-slate-400">
               Send messages to other users
+              {connected ? '' : ' · Reconnecting...'}
             </p>
           </div>
           <button
@@ -176,6 +312,7 @@ function ChatPage() {
             error={conversationsError}
             onRetry={loadConversations}
             showOnMobile={mobileView === 'sidebar'}
+            isUserOnline={isUserOnline}
           />
 
           <section
@@ -197,22 +334,24 @@ function ChatPage() {
                     ← Back
                   </button>
 
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-sm font-semibold text-primary-200"
-                    aria-hidden="true"
-                  >
-                    {getInitials(
-                      selectedConversation.otherParticipant?.name || '?',
-                    )}
+                  <div className="relative shrink-0" aria-hidden="true">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/20 text-sm font-semibold text-primary-200">
+                      {getInitials(otherParticipant?.name || '?')}
+                    </div>
+                    <span
+                      className={[
+                        'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-surface-950',
+                        isOtherOnline ? 'bg-emerald-400' : 'bg-slate-500',
+                      ].join(' ')}
+                    />
                   </div>
 
                   <div className="min-w-0">
                     <h2 className="truncate font-medium text-white">
-                      {selectedConversation.otherParticipant?.name ||
-                        'Unknown user'}
+                      {otherParticipant?.name || 'Unknown user'}
                     </h2>
                     <p className="truncate text-xs text-slate-400">
-                      {selectedConversation.otherParticipant?.email}
+                      {isOtherOnline ? 'Online' : 'Offline'}
                     </p>
                   </div>
                 </header>
@@ -223,9 +362,14 @@ function ChatPage() {
                   loading={messagesLoading}
                   error={messagesError}
                   onRetry={() => loadMessages(selectedConversationId)}
+                  typingUser={typingUser}
                 />
 
-                <MessageInput onSend={handleSendMessage} />
+                <MessageInput
+                  onSend={handleSendMessage}
+                  onTyping={handleTyping}
+                  onTypingStop={emitTypingStop}
+                />
               </>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">

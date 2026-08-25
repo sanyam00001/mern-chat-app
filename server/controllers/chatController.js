@@ -3,74 +3,23 @@ const Conversation = require("../models/conversationModel");
 const Message = require("../models/messageModel");
 const User = require("../models/userModel");
 const {
-  validateObjectId,
   validateCreateConversationInput,
-  validateSendMessageInput,
   parsePaginationParams,
   validateUserSearchQuery,
 } = require("../utils/validateChat");
-
-const formatUserPreview = (user) => ({
-  _id: user._id,
-  name: user.name,
-  email: user.email,
-  avatar: user.avatar,
-});
-
-const formatConversationResponse = (conversation, currentUserId) => {
-  const otherParticipant = conversation.participants.find(
-    (participant) => participant._id.toString() !== currentUserId.toString()
-  );
-
-  return {
-    _id: conversation._id,
-    otherParticipant: otherParticipant
-      ? formatUserPreview(otherParticipant)
-      : null,
-    lastMessage: conversation.lastMessage?.content
-      ? {
-          content: conversation.lastMessage.content,
-          sender: conversation.lastMessage.sender,
-          createdAt: conversation.lastMessage.createdAt,
-        }
-      : null,
-    updatedAt: conversation.updatedAt,
-    createdAt: conversation.createdAt,
-  };
-};
-
-const formatMessageResponse = (message) => ({
-  _id: message._id,
-  conversation: message.conversation,
-  sender: formatUserPreview(message.sender),
-  content: message.content,
-  createdAt: message.createdAt,
-  updatedAt: message.updatedAt,
-});
-
-const findConversationForUser = async (conversationId, userId) => {
-  validateObjectId(conversationId, "conversation ID");
-
-  const conversation = await Conversation.findById(conversationId);
-
-  if (!conversation) {
-    const error = new Error("Conversation not found");
-    error.statusCode = 404;
-    throw error;
-  }
-
-  const isParticipant = conversation.participants.some(
-    (participantId) => participantId.toString() === userId.toString()
-  );
-
-  if (!isParticipant) {
-    const error = new Error("Not authorized to access this conversation");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  return conversation;
-};
+const {
+  formatUserPreview,
+  formatConversationResponse,
+  formatMessageResponse,
+} = require("../utils/chatFormat");
+const {
+  findConversationForUser,
+  persistMessage,
+} = require("../services/chatService");
+const {
+  emitNewMessage,
+  emitConversationUpdated,
+} = require("../socket/emitters");
 
 const searchUsers = asyncHandler(async (req, res) => {
   const search = validateUserSearchQuery(req.query.search);
@@ -123,6 +72,8 @@ const createOrFindConversation = asyncHandler(async (req, res) => {
     );
   }
 
+  emitConversationUpdated(conversation);
+
   res.status(200).json(formatConversationResponse(conversation, currentUserId));
 });
 
@@ -172,32 +123,15 @@ const sendMessage = asyncHandler(async (req, res) => {
   const { content } = req.body;
   const currentUserId = req.user._id;
 
-  validateSendMessageInput({ content });
-
-  await findConversationForUser(conversationId, currentUserId);
-
-  const trimmedContent = content.trim();
-
-  const message = await Message.create({
-    conversation: conversationId,
-    sender: currentUserId,
-    content: trimmedContent,
+  const { message, conversation } = await persistMessage({
+    conversationId,
+    userId: currentUserId,
+    content,
   });
 
-  await Conversation.findByIdAndUpdate(conversationId, {
-    lastMessage: {
-      content: trimmedContent,
-      sender: currentUserId,
-      createdAt: message.createdAt,
-    },
-  });
+  emitNewMessage(message, conversation);
 
-  const populatedMessage = await Message.findById(message._id).populate(
-    "sender",
-    "name email avatar"
-  );
-
-  res.status(201).json(formatMessageResponse(populatedMessage));
+  res.status(201).json(message);
 });
 
 module.exports = {

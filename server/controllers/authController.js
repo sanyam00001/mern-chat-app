@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
 const User = require("../models/userModel");
 const generateToken = require("../utils/generateToken");
@@ -5,6 +6,8 @@ const {
   validateRegisterInput,
   validateLoginInput,
 } = require("../utils/validateAuth");
+const { getIO } = require("../socket/ioInstance");
+const { disconnectUserSockets } = require("../socket/presence");
 
 const formatUserResponse = (user) => ({
   _id: user._id,
@@ -58,6 +61,21 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
+  const token = req.cookies.jwt;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const io = getIO();
+
+      if (io && decoded.userId) {
+        disconnectUserSockets(io, decoded.userId);
+      }
+    } catch {
+      // Cookie is still cleared even if the token is already invalid.
+    }
+  }
+
   res.cookie("jwt", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
