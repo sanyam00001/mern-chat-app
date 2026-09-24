@@ -5,8 +5,10 @@ const {
   getConversations,
   getMessages,
   sendMessage,
+  getMessageAttachment,
 } = require("../controllers/chatController");
 const { protect } = require("../middleware/authMiddleware");
+const { optionalMessageUpload } = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
 
@@ -16,6 +18,11 @@ router.get("/users", searchUsers);
 router.post("/conversations", createOrFindConversation);
 router.get("/conversations", getConversations);
 router.get("/conversations/:conversationId/messages", getMessages);
-router.post("/conversations/:conversationId/messages", sendMessage);
+router.post(
+  "/conversations/:conversationId/messages",
+  optionalMessageUpload,
+  sendMessage
+);
+router.get("/messages/:messageId/attachment", getMessageAttachment);
 
 module.exports = router;

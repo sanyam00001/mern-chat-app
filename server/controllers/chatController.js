@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const asyncHandler = require("express-async-handler");
 const Conversation = require("../models/conversationModel");
 const Message = require("../models/messageModel");
@@ -6,6 +8,7 @@ const {
   validateCreateConversationInput,
   parsePaginationParams,
   validateUserSearchQuery,
+  validateObjectId,
 } = require("../utils/validateChat");
 const {
   formatUserPreview,
@@ -20,6 +23,7 @@ const {
   emitNewMessage,
   emitConversationUpdated,
 } = require("../socket/emitters");
+const { getAbsoluteStoragePath, fileExists } = require("../utils/fileStorage");
 
 const searchUsers = asyncHandler(async (req, res) => {
   const search = validateUserSearchQuery(req.query.search);
@@ -123,15 +127,78 @@ const sendMessage = asyncHandler(async (req, res) => {
   const { content } = req.body;
   const currentUserId = req.user._id;
 
+  if (!req.file && (!content || !String(content).trim())) {
+    res.status(400);
+    throw new Error("Message content or a file attachment is required");
+  }
+
   const { message, conversation } = await persistMessage({
     conversationId,
     userId: currentUserId,
     content,
+    file: req.file,
   });
 
   emitNewMessage(message, conversation);
 
   res.status(201).json(message);
+});
+
+const contentDisposition = (type, filename) => {
+  const fallback = String(filename || "file")
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/["\\]/g, "_");
+  const encoded = encodeURIComponent(filename || "file");
+
+  return `${type}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+};
+
+const getMessageAttachment = asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const currentUserId = req.user._id;
+
+  validateObjectId(messageId, "message ID");
+
+  const message = await Message.findById(messageId);
+
+  if (!message || !message.attachment?.storageKey) {
+    res.status(404);
+    throw new Error("Attachment not found");
+  }
+
+  await findConversationForUser(message.conversation, currentUserId);
+
+  const exists = await fileExists(message.attachment.storageKey);
+
+  if (!exists) {
+    res.status(404);
+    throw new Error("Attachment file is no longer available");
+  }
+
+  const absolutePath = getAbsoluteStoragePath(message.attachment.storageKey);
+  const isImage = message.messageType === "image";
+
+  res.setHeader(
+    "Content-Type",
+    message.attachment.mimeType || "application/octet-stream"
+  );
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.setHeader(
+    "Content-Disposition",
+    contentDisposition(
+      isImage ? "inline" : "attachment",
+      message.attachment.originalName || path.basename(absolutePath)
+    )
+  );
+
+  fs.createReadStream(absolutePath).on("error", () => {
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Failed to read attachment" });
+    } else {
+      res.destroy();
+    }
+  }).pipe(res);
 });
 
 module.exports = {
@@ -140,4 +207,5 @@ module.exports = {
   getConversations,
   getMessages,
   sendMessage,
+  getMessageAttachment,
 };

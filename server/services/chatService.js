@@ -3,8 +3,18 @@ const Message = require("../models/messageModel");
 const {
   validateObjectId,
   validateSendMessageInput,
+  validateOptionalCaption,
 } = require("../utils/validateChat");
-const { formatMessageResponse } = require("../utils/chatFormat");
+const {
+  formatMessageResponse,
+  getMessagePreview,
+} = require("../utils/chatFormat");
+const {
+  detectFileFromBuffer,
+  sanitizeOriginalName,
+  validateUploadSize,
+} = require("../utils/fileValidation");
+const { saveUploadBuffer, deleteStoredFile } = require("../utils/fileStorage");
 
 const findConversationForUser = async (conversationId, userId) => {
   validateObjectId(conversationId, "conversation ID");
@@ -30,40 +40,77 @@ const findConversationForUser = async (conversationId, userId) => {
   return conversation;
 };
 
-const persistMessage = async ({ conversationId, userId, content }) => {
-  validateSendMessageInput({ content });
-
+const persistMessage = async ({ conversationId, userId, content, file }) => {
   await findConversationForUser(conversationId, userId);
 
-  const trimmedContent = content.trim();
+  let trimmedContent = "";
+  let messageType = "text";
+  let attachment;
+  let storageKey;
 
-  const message = await Message.create({
-    conversation: conversationId,
-    sender: userId,
-    content: trimmedContent,
-  });
+  if (file) {
+    validateUploadSize(file.size);
+    validateOptionalCaption(content);
 
-  await Conversation.findByIdAndUpdate(conversationId, {
-    lastMessage: {
-      content: trimmedContent,
+    const detected = detectFileFromBuffer(file.buffer, file.originalname);
+    const originalName = sanitizeOriginalName(file.originalname);
+
+    storageKey = await saveUploadBuffer(
+      file.buffer,
+      conversationId,
+      detected.extension
+    );
+
+    messageType = detected.messageType;
+    trimmedContent = (content || "").trim();
+    attachment = {
+      storageKey,
+      originalName,
+      mimeType: detected.mimeType,
+      size: file.size,
+    };
+  } else {
+    validateSendMessageInput({ content });
+    trimmedContent = content.trim();
+  }
+
+  try {
+    const message = await Message.create({
+      conversation: conversationId,
       sender: userId,
-      createdAt: message.createdAt,
-    },
-  });
+      content: trimmedContent,
+      messageType,
+      ...(attachment ? { attachment } : {}),
+    });
 
-  const populatedMessage = await Message.findById(message._id).populate(
-    "sender",
-    "name email avatar"
-  );
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastMessage: {
+        content: getMessagePreview(message),
+        sender: userId,
+        createdAt: message.createdAt,
+      },
+    });
 
-  const populatedConversation = await Conversation.findById(
-    conversationId
-  ).populate("participants", "name email avatar");
+    const populatedMessage = await Message.findById(message._id).populate(
+      "sender",
+      "name email avatar"
+    );
 
-  return {
-    message: formatMessageResponse(populatedMessage),
-    conversation: populatedConversation,
-  };
+    const populatedConversation = await Conversation.findById(
+      conversationId
+    ).populate("participants", "name email avatar");
+
+    return {
+      message: formatMessageResponse(populatedMessage),
+      conversation: populatedConversation,
+    };
+  } catch (error) {
+    if (storageKey) {
+      await deleteStoredFile(storageKey);
+    }
+
+    throw error;
+  }
 };
 
 const getUserConversationIds = async (userId) => {

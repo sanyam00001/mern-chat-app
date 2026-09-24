@@ -9,9 +9,10 @@ import {
   createOrFindConversation,
   getConversations,
   getMessages,
+  sendMediaMessage,
   sendMessage as sendMessageApi,
 } from '../services/chatService'
-import { getInitials } from '../utils/chatUtils'
+import { getInitials, getMessagePreview } from '../utils/chatUtils'
 import { SOCKET_EVENTS } from '../utils/constants'
 
 const TYPING_THROTTLE_MS = 1500
@@ -239,14 +240,20 @@ function ChatPage() {
     })
   }, [socket, selectedConversationId])
 
-  const handleSendMessage = async (content) => {
+  const handleSendMessage = async ({ content, file, onProgress }) => {
     if (!selectedConversationId) {
       return
     }
 
     emitTypingStop()
 
-    const newMessage = await sendMessageApi(selectedConversationId, content)
+    const newMessage = file
+      ? await sendMediaMessage(selectedConversationId, {
+          content,
+          file,
+          onProgress,
+        })
+      : await sendMessageApi(selectedConversationId, content)
 
     setMessages((prev) => {
       if (prev.some((item) => item._id === newMessage._id)) {
@@ -259,7 +266,7 @@ function ChatPage() {
     upsertConversation({
       ...(selectedConversation || { _id: selectedConversationId }),
       lastMessage: {
-        content: newMessage.content,
+        content: getMessagePreview(newMessage),
         sender: newMessage.sender._id,
         createdAt: newMessage.createdAt,
       },

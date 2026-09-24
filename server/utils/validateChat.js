@@ -45,6 +45,22 @@ const validateSendMessageInput = ({ content }) => {
   }
 };
 
+const validateOptionalCaption = (content) => {
+  if (content == null || content === "") {
+    return;
+  }
+
+  if (typeof content !== "string") {
+    throwValidationError("Message content is invalid");
+  }
+
+  if (content.trim().length > MAX_MESSAGE_LENGTH) {
+    throwValidationError(
+      `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`
+    );
+  }
+};
+
 const parsePaginationParams = (query) => {
   let page = parseInt(query.page, 10);
   let limit = parseInt(query.limit, 10);
@@ -84,6 +100,7 @@ module.exports = {
   validateObjectId,
   validateCreateConversationInput,
   validateSendMessageInput,
+  validateOptionalCaption,
   parsePaginationParams,
   validateUserSearchQuery,
 };

@@ -6,6 +6,20 @@ export const API_BASE_URL =
 export const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL || API_BASE_URL.replace(/\/api\/?$/, '')
 
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+
+export const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.txt', '.csv', '.zip', '.docx', '.xlsx']
+
+export const ALLOWED_UPLOAD_EXTENSIONS = [
+  ...ALLOWED_IMAGE_EXTENSIONS,
+  ...ALLOWED_FILE_EXTENSIONS,
+]
+
+export const UPLOAD_ACCEPT =
+  'image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.csv,.zip,.docx,.xlsx'
+
 export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',

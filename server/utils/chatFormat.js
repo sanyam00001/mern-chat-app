@@ -27,17 +27,52 @@ const formatConversationResponse = (conversation, currentUserId) => {
   };
 };
 
-const formatMessageResponse = (message) => ({
-  _id: message._id,
-  conversation: message.conversation,
-  sender: formatUserPreview(message.sender),
-  content: message.content,
-  createdAt: message.createdAt,
-  updatedAt: message.updatedAt,
-});
+const getMessagePreview = (message) => {
+  const content = (message.content || "").trim();
+
+  if (content) {
+    return content;
+  }
+
+  const type = message.messageType || "text";
+
+  if (type === "image") {
+    return "Photo";
+  }
+
+  if (type === "file") {
+    return message.attachment?.originalName || "File";
+  }
+
+  return content;
+};
+
+const formatMessageResponse = (message) => {
+  const messageType = message.messageType || "text";
+  const hasAttachment = Boolean(message.attachment?.storageKey);
+
+  return {
+    _id: message._id,
+    conversation: message.conversation,
+    sender: formatUserPreview(message.sender),
+    content: message.content || "",
+    messageType,
+    attachment: hasAttachment
+      ? {
+          url: `/chat/messages/${message._id}/attachment`,
+          originalName: message.attachment.originalName,
+          mimeType: message.attachment.mimeType,
+          size: message.attachment.size,
+        }
+      : null,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+};
 
 module.exports = {
   formatUserPreview,
   formatConversationResponse,
   formatMessageResponse,
+  getMessagePreview,
 };
