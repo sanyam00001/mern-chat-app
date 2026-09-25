@@ -201,6 +201,19 @@ const getMessageAttachment = asyncHandler(async (req, res) => {
   }).pipe(res);
 });
 
+const markConversationAsRead = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const currentUserId = req.user._id;
+
+  await findConversationForUser(conversationId, currentUserId);
+
+  await Conversation.findByIdAndUpdate(conversationId, {
+    $set: { [`unreadCounts.${currentUserId.toString()}`]: 0 },
+  });
+
+  res.status(200).json({ success: true });
+});
+
 module.exports = {
   searchUsers,
   createOrFindConversation,
@@ -208,4 +221,5 @@ module.exports = {
   getMessages,
   sendMessage,
   getMessageAttachment,
+  markConversationAsRead,
 };

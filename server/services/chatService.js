@@ -41,7 +41,7 @@ const findConversationForUser = async (conversationId, userId) => {
 };
 
 const persistMessage = async ({ conversationId, userId, content, file }) => {
-  await findConversationForUser(conversationId, userId);
+  const conversation = await findConversationForUser(conversationId, userId);
 
   let trimmedContent = "";
   let messageType = "text";
@@ -83,12 +83,23 @@ const persistMessage = async ({ conversationId, userId, content, file }) => {
       ...(attachment ? { attachment } : {}),
     });
 
+    const incOps = {};
+    conversation.participants.forEach((participantId) => {
+      const pid = participantId.toString();
+      if (pid !== userId.toString()) {
+        incOps[`unreadCounts.${pid}`] = 1;
+      }
+    });
+
     await Conversation.findByIdAndUpdate(conversationId, {
-      lastMessage: {
-        content: getMessagePreview(message),
-        sender: userId,
-        createdAt: message.createdAt,
+      $set: {
+        lastMessage: {
+          content: getMessagePreview(message),
+          sender: userId,
+          createdAt: message.createdAt,
+        },
       },
+      $inc: incOps,
     });
 
     const populatedMessage = await Message.findById(message._id).populate(

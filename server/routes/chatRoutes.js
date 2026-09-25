@@ -6,6 +6,7 @@ const {
   getMessages,
   sendMessage,
   getMessageAttachment,
+  markConversationAsRead,
 } = require("../controllers/chatController");
 const { protect } = require("../middleware/authMiddleware");
 const { optionalMessageUpload } = require("../middleware/uploadMiddleware");
@@ -24,5 +25,6 @@ router.post(
   sendMessage
 );
 router.get("/messages/:messageId/attachment", getMessageAttachment);
+router.patch("/conversations/:conversationId/read", markConversationAsRead);
 
 module.exports = router;

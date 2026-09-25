@@ -9,6 +9,7 @@ import {
   createOrFindConversation,
   getConversations,
   getMessages,
+  markConversationAsRead,
   sendMediaMessage,
   sendMessage as sendMessageApi,
 } from '../services/chatService'
@@ -22,7 +23,7 @@ const getMessageConversationId = (message) =>
 
 function ChatPage() {
   const { user } = useAuth()
-  const { socket, connected, isUserOnline, setReconnectHandler } = useSocket()
+  const { socket, connected, isUserOnline, setReconnectHandler, clearUnread, setActiveConversation } = useSocket()
 
   const [conversations, setConversations] = useState([])
   const [conversationsLoading, setConversationsLoading] = useState(true)
@@ -100,6 +101,10 @@ function ChatPage() {
   }, [selectedConversationId])
 
   useEffect(() => {
+    setActiveConversation(selectedConversationId)
+  }, [selectedConversationId, setActiveConversation])
+
+  useEffect(() => {
     loadConversations()
   }, [loadConversations])
 
@@ -142,6 +147,9 @@ function ChatPage() {
         return
       }
 
+      clearUnread(conversationId)
+      markConversationAsRead(conversationId).catch(() => {})
+
       setMessages((prev) => {
         if (prev.some((item) => item._id === message._id)) {
           return prev
@@ -162,7 +170,11 @@ function ChatPage() {
         return
       }
 
-      upsertConversation(conversation)
+      const isActive = conversation._id === selectedConversationIdRef.current
+
+      upsertConversation(
+        isActive ? { ...conversation, unreadCount: 0 } : conversation,
+      )
     }
 
     const handleTypingStart = ({ conversationId, userId, name }) => {
@@ -201,6 +213,15 @@ function ChatPage() {
     setShowNewConversation(false)
     setMobileView('chat')
     setTypingUser(null)
+
+    setConversations((prev) =>
+      prev.map((item) =>
+        item._id === conversationId ? { ...item, unreadCount: 0 } : item,
+      ),
+    )
+
+    clearUnread(conversationId)
+    markConversationAsRead(conversationId).catch(() => {})
   }
 
   const handleStartConversation = async (recipientId) => {
@@ -239,6 +260,7 @@ function ChatPage() {
       conversationId: selectedConversationId,
     })
   }, [socket, selectedConversationId])
+
 
   const handleSendMessage = async ({ content, file, onProgress }) => {
     if (!selectedConversationId) {

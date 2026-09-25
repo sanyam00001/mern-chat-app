@@ -109,9 +109,16 @@ function ConversationSidebar({
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 truncate text-sm text-slate-400">
-                        {conversation.lastMessage?.content || 'No messages yet'}
-                      </p>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <p className="truncate text-sm text-slate-400">
+                          {conversation.lastMessage?.content || 'No messages yet'}
+                        </p>
+                        {conversation.unreadCount > 0 && (
+                          <span className="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-primary-500 px-1.5 text-xs font-semibold text-white">
+                            {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 </li>

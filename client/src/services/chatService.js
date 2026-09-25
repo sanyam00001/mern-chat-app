@@ -77,3 +77,8 @@ export const downloadAttachment = async (attachmentUrl, filename) => {
   link.remove()
   URL.revokeObjectURL(objectUrl)
 }
+
+export const markConversationAsRead = async (conversationId) => {
+  const { data } = await api.patch(`/chat/conversations/${conversationId}/read`)
+  return data
+}

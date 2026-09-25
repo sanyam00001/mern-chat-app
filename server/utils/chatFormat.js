@@ -22,6 +22,7 @@ const formatConversationResponse = (conversation, currentUserId) => {
           createdAt: conversation.lastMessage.createdAt,
         }
       : null,
+    unreadCount: conversation.unreadCounts?.get(currentUserId.toString()) || 0,
     updatedAt: conversation.updatedAt,
     createdAt: conversation.createdAt,
   };
