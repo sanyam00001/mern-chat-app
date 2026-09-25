@@ -19,8 +19,8 @@ function ConversationSidebar({
       aria-label="Conversations"
     >
       <div className="border-b border-white/10 px-4 py-4">
-        <h2 className="text-lg font-semibold text-white">Messages</h2>
-        <p className="mt-1 text-sm text-slate-400">Your conversations</p>
+        <h2 className="text-lg font-semibold text-white">Chatter</h2>
+        <p className="mt-1 text-sm text-slate-400">All your recent chats</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">

@@ -301,13 +301,13 @@ function ChatPage() {
   }
 
   return (
-    <div className="container-app py-4 md:py-6">
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] shadow-xl">
+    <div className="flex h-[calc(100svh-4rem)] flex-col">
+      <div className="flex flex-1 flex-col overflow-hidden bg-white/[0.02]">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 md:px-5">
           <div>
             <h1 className="text-lg font-semibold text-white">Chat</h1>
             <p className="text-sm text-slate-400">
-              Send messages to other users
+              {/* Send messages to other users */}
               {connected ? '' : ' · Reconnecting...'}
             </p>
           </div>
@@ -332,7 +332,7 @@ function ChatPage() {
           />
         )}
 
-        <div className="flex h-[calc(100svh-12rem)] min-h-[480px]">
+        <div className="flex flex-1 min-h-0">
           <ConversationSidebar
             conversations={conversations}
             selectedConversationId={selectedConversationId}
