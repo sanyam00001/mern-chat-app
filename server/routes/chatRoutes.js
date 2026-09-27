@@ -10,6 +10,7 @@ const {
 } = require("../controllers/chatController");
 const { protect } = require("../middleware/authMiddleware");
 const { optionalMessageUpload } = require("../middleware/uploadMiddleware");
+const { messageLimiter } = require("../middleware/rateLimiter");
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ router.get("/conversations", getConversations);
 router.get("/conversations/:conversationId/messages", getMessages);
 router.post(
   "/conversations/:conversationId/messages",
+  messageLimiter,
   optionalMessageUpload,
   sendMessage
 );
