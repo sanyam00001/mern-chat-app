@@ -300,6 +300,8 @@ function ChatPage() {
     setMobileView('sidebar')
   }
 
+  
+
   return (
     <div className="flex h-[calc(100svh-4rem)] flex-col">
       <div className="flex flex-1 flex-col overflow-hidden bg-white/[0.02]">
